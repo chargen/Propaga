@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Propaga by ALaDyn</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Propaga</h1>
+      <h2 class="project-tagline">Beam dynamics code</h2>
+      <a href="https://github.com/ALaDyn/Propaga" class="btn">View on GitHub</a>
+      <a href="https://github.com/ALaDyn/Propaga/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/ALaDyn/Propaga/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <p>Copyright 2010-2016 Stefano Sinigardi, Graziano Servizi, Giorgio Turchetti<br>
+<em>Uses jsoncons library (<a href="https://github.com/danielaparker/jsoncons">https://github.com/danielaparker/jsoncons</a>)</em></p>
+
+<p><code>Propaga</code> is a C++ code developed by the Physics of Complex System group, inside the Physics and Astronomy Department at the Bologna University, to study the three dimensional propagation of a particle bunch along a transfer line, composed by many different lattice elements.<br>
+You can build it using the makefile or the Visual Studio 2015 solution. In the latter case, please install MS-MPI before trying to build.<br>
+In order to work, beside the executable, you should have at least two other important files: a json parameter file (default: input.json) and a phase-space distribution particle file (default test.initialbunch.ppg). Of course these default names can be varied, providing the correct path to Propaga through the following flags:</p>
+
+<ul>
+<li>use <code>-par</code> to define the name of the json file</li>
+<li>use <code>-f</code> to define the name of the phase-space distribution particle file</li>
+</ul>
+
+<p>There are other some useful command line parameters you can give to the executable:</p>
+
+<ul>
+<li>use <code>-restart xxx</code> to tell the program that we want to restart from time-step=xxx (of course the dump must be present in the folder)</li>
+<li>use <code>-LASTSLOWEST</code> to tell the program that the last particle in the input file is the reference particle, or to say, the slowest particle that you keep as a reference to wait for when deciding how to terminate the simulation. This particle, in this case, will be discarded in the bunch parameters calculations</li>
+<li>use <code>-o</code> to define the name of the simulation. It will be used at the beginning of any file written during the simulation.</li>
+<li>use <code>-override_ordinal</code> to discard the particle id column in the input distribution file (10th column, if present).</li>
+<li>use <code>-OUT xxx</code> to define a time-step=xxx at which you want the full output.</li>
+<li>use <code>-OUTZ xxx</code> to define a <em>z</em> position at which you want an output. When a particle cross that invisible boundary, it will be dumped on a special file (<code>sim_name.9999999.ppg</code>), with the 7th column being the time-step at which they have been dumped and <em>not</em> their type!</li>
+<li>use <code>-TRACK nn</code> to obtain the full phase-space of the first #nn particles during the whole simulation, all together in the same file <code>sim_name.tracked.ppg</code>. It is useful to create heatmaps of the particle density along the transfer line</li>
+</ul>
+
+<h2>
+<a id="json-file-description" class="anchor" href="#json-file-description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Json file description</h2>
+
+<p>The input parameters for the simulation are driven by a single json file.</p>
+
+<ul>
+<li>
+<code>emin</code>, <code>emax</code>: if you define a negative value, no minimum/maximum energy is defined. Particle outside this energy band will be flagged as lost, but their evolution will proceed anyway (being lost means that they are excluded from bunch properties calculations, but not from full dumps, where in the nineth column their flag will be set to <code>1</code>)</li>
+<li>
+<code>dt</code>: time interval between the integrator steps (for now just a 4th order Runge-Kutta is implemented)</li>
+<li>
+<code>steps_between_dumps</code>: number of steps between full data dumps (if 0, no dumps will be done)</li>
+<li>
+<code>steps_between_diags</code>: number of steps between diagnostics records</li>
+<li>
+<code>Magnetic_elements</code>: an array of json elements defining the lattice characteristics</li>
+</ul>
+
+<p>This is an example of a working json file</p>
+
+<pre><code>{
+  "emin": -1,
+  "emax": -1,
+  "dt": 0.1,
+  "steps_between_dumps": 5000,
+  "steps_between_diags": 50,
+  "Magnetic_elements":[
+    {
+      "type": "J",
+      "begin": 1.0,
+      "end": 1.0,
+      "par_01": 0.05
+    },
+    {
+      "type": "M",
+      "begin": 2.0,
+      "end": 8.0,
+      "par_01": 5.00,
+      "par_02": 2.0
+    },
+    {
+      "type": "J",
+      "begin": 50.0,
+      "end": 50.1,
+      "par_01": 0.05
+    }
+  ]
+}
+</code></pre>
+
+<p>Of course <code>Magnetic_elements</code> can be customized according to your needs (the previous was just an example of a solenoid between two circular selectors)</p>
+
+<h3>
+<a id="magnetic_elements-type-codes-and-params" class="anchor" href="#magnetic_elements-type-codes-and-params" aria-hidden="true"><span class="octicon octicon-link"></span></a>Magnetic_elements "type" codes and params</h3>
+
+<p>Every <code>Magnetic_elements</code> json definition shares the same identical basic structure. You have to define the <code>type</code>, the initial z position <code>begin</code>, the final z position <code>end</code> and few other parameters, if required by the element, as follows:</p>
+
+<ul>
+<li>
+<code>"type" : "O"</code>: DRIFT: useful to define the minimum <em>z</em> the simulation should reach, through the parameter <code>end</code>. If the lattice is dense of objects to the end, no need to define it. Note that particles outside any other define element are drifting even if no drift is defined.</li>
+<li>
+<code>"type" : "M"</code>: SOLENOID
+
+<ul>
+<li>
+<code>par_01</code>: peak magnetic field inside the solenoid, in T</li>
+<li>
+<code>par_02</code>: exponential decay factor of the magnetic field on the element fringes</li>
+</ul>
+</li>
+<li>
+<code>"type" : "F"</code>: FOCUSING QUADRUPOLE
+
+<ul>
+<li>
+<code>par_01</code>: magnetic gradient inside the quadrupole, in T/m</li>
+</ul>
+</li>
+<li>
+<code>"type" : "D"</code>: DEFOCUSING QUADRUPOLE
+
+<ul>
+<li>
+<code>par_01</code>: magnetic gradient inside the quadrupole, in T/m</li>
+</ul>
+</li>
+<li>
+<code>"type" : "J"</code>: CIRCULAR SELECTOR
+
+<ul>
+<li>
+<code>par_01</code>: selector radius, in cm</li>
+</ul>
+</li>
+<li>
+<code>"type" : "K"</code>: SELECTOR
+
+<ul>
+<li>
+<code>par_01</code>: aperture starting point, along x, in cm</li>
+<li>
+<code>par_02</code>: aperture ending point, along x, in cm</li>
+</ul>
+</li>
+<li>
+<code>"type" : "P"</code>: BENDING MAGNET (PRE)
+
+<ul>
+<li>
+<code>par_01</code>: bending magnetic field along y, uniform, in T (bends in the xz plane)</li>
+</ul>
+</li>
+<li>
+<code>"type" : "Q"</code>: BENDING MAGNET (POST)
+
+<ul>
+<li>
+<code>par_01</code>: bending magnetic field along -y, uniform, in T (the field is reversed with respect to element <code>"type" : "P"</code>, in order to write always the same number)</li>
+</ul>
+</li>
+<li>
+<code>"type" : "T"</code>: CHICANE PARTICLE SELECTOR
+
+<ul>
+<li>
+<code>par_01</code>: transverse position (along x) of the selector, in cm</li>
+<li>
+<code>par_02</code>: aperture of the selector, in cm</li>
+</ul>
+</li>
+</ul>
+
+<h4>
+<a id="deprecated-or-untested-elements" class="anchor" href="#deprecated-or-untested-elements" aria-hidden="true"><span class="octicon octicon-link"></span></a>deprecated or untested elements</h4>
+
+<ul>
+<li>
+<code>"type" : "S"</code>: SOLENOID
+
+<ul>
+<li>
+<code>par_01</code>: uniform magnetic field inside the solenoid, in T</li>
+</ul>
+</li>
+<li>
+<code>"type" : "X"</code>: SOLENOID (ENTRANCE/EXIT SINGLE KICK MODEL)
+
+<ul>
+<li>
+<code>par_01</code>: uniform magnetic field inside the solenoid, in T</li>
+</ul>
+</li>
+<li>
+<code>"type" : "I"</code>: CIRCULAR SELECTOR (DEPRECATED)
+
+<ul>
+<li>
+<code>par_01</code>: selector radius, in cm</li>
+</ul>
+</li>
+<li>
+<code>"type" : "R"</code>: CHICANE PARTICLE SELECTOR (DEPRECATED)
+
+<ul>
+<li>
+<code>par_01</code>: transverse position (along x) of the selector, in cm</li>
+<li>
+<code>par_02</code>: aperture of the selector, in cm</li>
+</ul>
+</li>
+</ul>
+
+<h4>
+<a id="work-in-progress-elements" class="anchor" href="#work-in-progress-elements" aria-hidden="true"><span class="octicon octicon-link"></span></a>work-in-progress elements</h4>
+
+<ul>
+<li>
+<code>"type" : "V"</code>: RF CAVITY (ASTRA TM-CAVITY MODEL)
+
+<ul>
+<li>
+<code>par_01</code>: standing wave frequency, in MHz</li>
+<li>
+<code>par_02</code>: maximum cavity field amplitude, in MV/m</li>
+<li>
+<code>par_03</code>: wavelength (in cm)</li>
+<li>
+<code>par_04</code>: initial wave phase (in degrees)</li>
+</ul>
+</li>
+<li>
+<code>"type" : "W"</code>: RF CAVITY
+
+<ul>
+<li>
+<code>par_01</code>: standing wave frequency, in MHz</li>
+<li>
+<code>par_02</code>: maximum cavity field amplitude, in MV/m</li>
+<li>
+<code>par_03</code>: wavelength (in cm)</li>
+<li>
+<code>par_04</code>: initial wave phase (in degrees)</li>
+</ul>
+</li>
+</ul>
+
+<h2>
+<a id="particle-distribution-file-description" class="anchor" href="#particle-distribution-file-description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Particle distribution file description</h2>
+
+<p>Each line defines a different particle, with fields in this order:</p>
+
+<pre><code>x  y  z  x'  y'  z'  type   weight   flag   #id
+</code></pre>
+
+<p>where <code>x,y,z</code> are in cm, <code>x',y',z'</code> are particle momenta normalized by mass*c, <code>type</code> follows FLUKA conventions, <code>flag</code> says if the particle is alive (0) or not and <code>#id</code> is just a progressive number to identify univocally each one of them from the beginning to the end of the simulation, even if shuffled inside the file</p>
+
+<pre><code>-8.375e-04  -9.600e-04  2.703e-03   -1.120e-03  -1.348e-03  4.619e-02   1    0.225   0     1
+-8.398e-04  -9.588e-04  2.703e-03   -1.108e-03  -1.366e-03  4.618e-02   1    0.225   0     2
+-8.386e-04  -9.588e-04  2.703e-03   -1.094e-03  -1.346e-03  4.617e-02   1    0.225   0     3
+-8.375e-04  -9.588e-04  2.703e-03   -1.109e-03  -1.328e-03  4.621e-02   1    0.225   0     4
+</code></pre>
+
+<h2>
+<a id="papers-containing-propaga-simulations" class="anchor" href="#papers-containing-propaga-simulations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Papers containing Propaga simulations</h2>
+
+<p>1) P. Londrillo, G. Servizi, A. Sgattoni, S. Sinigardi, M. Sumini, G. Turchetti, Protons Acceleration by CO2 Laser Pulses and Perspectives for Medical Applications,
+CO2 Laser-Optimisation and Application (2012)<br>
+<a href="http://www.intechopen.com/books/co2-laser-optimisation-and-application/protons-acceleration-from-co2-laser-pulses-for-biomedical-applications">doi:10.5772/38882</a></p>
+
+<p>2) G. Turchetti, S. Sinigardi, P. Londrillo, F. Rossi, M. Sumini, D. Giove, C. De Martinis, The LILIA experiment: Energy selection and post-acceleration of laser generated protons, AIP Conference Proceedings, 1507, 820-824 (2012)<br>
+<a href="http://dx.doi.org/10.1063/1.4773804">doi:10.1063/1.4773804</a></p>
+
+<p>3) S. Sinigardi, G. Turchetti, P. Londrillo, F. Rossi, D. Giove, C. De Martinis, M. Sumini, Transport and energy selection of laser generated protons for postacceleration with a compact linac, Phys. Rev. ST Accel. Beams 16, 3, 031301 (2013)<br>
+<a href="http://link.aps.org/doi/10.1103/PhysRevSTAB.16.031301">doi:10.1103/PhysRevSTAB.16.031301</a></p>
+
+<p>4) S. Sinigardi, P. Londrillo, F. Rossi, G. Turchetti, P. R. Bolton, Post-acceleration of laser driven protons with a compact high field linac, Proc. SPIE 8779, 87791J (2013)<br>
+<a href="http://dx.doi.org/10.1117/12.2017235">doi:10.1117/12.2017235</a></p>
+
+<p>5) S. Sinigardi, G. Turchetti, F. Rossi, P. Londrillo, D. Giove, C. De Martinis, P. R. Bolton, High quality proton beams from hybrid integrated laser-driven ion acceleration systems, Nucl. Instr. Meth. A 740, 99-104 (2014)<br>
+<a href="http://www.sciencedirect.com/science/article/pii/S0168900213014873">doi:10.1016/j.nima.2013.10.080</a></p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/ALaDyn/Propaga">Propaga</a> is maintained by <a href="https://github.com/ALaDyn">ALaDyn</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
